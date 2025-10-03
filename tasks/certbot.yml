@@ -25,6 +25,8 @@
       {%   do cmd.append("--dns-cloudflare") %}
       {%   do cmd.append("--dns-cloudflare-credentials") %}
       {%   do cmd.append("/etc/letsencrypt/" ~ domain_fname ~ ".ini") %}
+      {%   do cmd.append("--dns-cloudflare-propagation-seconds") %}
+      {%   do cmd.append("60") %}
       {% elif certbot_provider == "godaddy" %}
       {%   do cmd.append("--manual") %}
       {%   do cmd.append("--preferred-challenges=dns") %}
