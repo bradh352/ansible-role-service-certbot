@@ -1,0 +1,78 @@
+---
+- name: "APT: Install dependencies"
+  ansible.builtin.apt:
+    pkg:
+      - "python3-certbot"
+      - "python3-certbot-nginx"
+    state: present
+  when: ansible_os_family == 'Debian'
+
+- name: "DNF: Install dependencies"
+  ansible.builtin.dnf:
+    name:
+      - "python3-certbot"
+      - "python3-certbot-nginx"
+    state: present
+  when: ansible_os_family == 'RedHat'
+
+- name: "APT: Install certbot cloudflare provider"
+  ansible.builtin.apt:
+    pkg:
+      - "python3-certbot-dns-cloudflare"
+    state: present
+  when: ansible_os_family == 'Debian' and certbot_provider == 'cloudflare'
+
+- name: "DNF: Install certbot cloudflare provider"
+  ansible.builtin.dnf:
+    name:
+      - "python3-certbot-dns-cloudflare"
+    state: present
+  when: ansible_os_family == 'RedHat' and certbot_provider == 'cloudflare'
+
+- name: "Install deployment script"
+  template:
+    src: "certbot-deploy.sh.j2"
+    dest: "/usr/local/bin/certbot-deploy.sh"
+    owner: root
+    mode: "755"
+
+- name: "Godaddy: Install Scripts"
+  copy:
+    dest: "/usr/local/bin/{{ item }}"
+    src: "{{ item }}"
+    mode: "755"
+    owner: root
+  with_items:
+    - "godaddydnsauth.sh"
+    - "godaddydnsauthclean.sh"
+  when: certbot_provider == "godaddy"
+
+- name: "CertBot"
+  ansible.builtin.include_tasks: certbot.yml
+  with_items: "{{ certbot_certs }}"
+  loop_control:
+    loop_var: cert
+
+- name: "certbot renew timer environment variables"
+  lineinfile:
+    path: /etc/sysconfig/certbot
+    regexp: "^{{ item.key }}=.*"
+    line: "{{ item.key }}={{ item.val }}"
+  with_items:
+    - { "key": "http_proxy",  "val": "{{ certbot_proxy }}" }
+    - { "key": "https_proxy", "val": "{{ certbot_proxy }}" }
+  when: certbot_proxy is defined and ansible_os_family == 'RedHat'
+
+- name: "Override directory for systemd certbot timer"
+  file:
+    path: /etc/systemd/system/certbot.service.d/
+    state: directory
+  when: certbot_proxy is defined and ansible_os_family == 'Debian'
+
+- name: "Override file systemd certbot timer to support proxy"
+  template:
+    src: systemd-timer-certbot-override.conf.j2
+    dest: /etc/systemd/system/certbot.service.d/override.conf
+    owner: root
+    mode: 644
+  when: certbot_proxy is defined and ansible_os_family == 'Debian'

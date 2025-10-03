@@ -1,0 +1,59 @@
+---
+- name: "determine domain filename"
+  set_fact:
+    domain_fname: "{{ cert.domain.removeprefix('*.') }}"
+
+- name: "save credentials"
+  copy:
+    dest: /etc/letsencrypt/{{ domain_fname }}.ini
+    content: |
+      dns_{{ certbot_provider }}_api_token="{{ cert.apikey | default(certbot_apikey) }}"
+    owner: root
+    mode: "600"
+
+- name: "Detect if we need to run"
+  shell: certbot certificates -d '{{ cert.domain }}'
+  register: certbot_needs_run
+  changed_when: ('VALID' not in certbot_needs_run.stdout)
+  failed_when: false
+
+- name: "Generate certbot command data"
+  set_fact:
+    certbot_command_data: >-
+      {% set cmd=[ "certbot", "certonly", "--cert-name", cert.domain, "--agree-tos", "-n", "-m", certbot_email, "--deploy-hook", "/usr/local/bin/certbot-deploy.sh " ~ domain_fname ] %}
+      {% if certbot_provider == "cloudflare" %}
+      {%   do cmd.append("--dns-cloudflare") %}
+      {%   do cmd.append("--dns-cloudflare-credentials") %}
+      {%   do cmd.append("/etc/letsencrypt/" ~ domain_fname ~ ".ini") %}
+      {% elif certbot_provider == "godaddy" %}
+      {%   do cmd.append("--manual") %}
+      {%   do cmd.append("--preferred-challenges=dns") %}
+      {%   do cmd.append("--manual-auth-hook") %}
+      {%   do cmd.append("/usr/local/bin/godaddydnsauth.sh /etc/letsencrypt/" ~ domain_fname ~ ".ini") %}
+      {%   do cmd.append("--manual-cleanup-hook") %}
+      {%   do cmd.append("/usr/local/bin/godaddydnsauthclean.sh /etc/letsencrypt/" ~ domain_fname ~ ".ini") %}
+      {% else %}
+      {{ notdefined | mandatory(msg="unrecognized provider " ~ certbot_provider) }}
+      {% endif %}
+      {%   set domains = [ cert.domain ] %}
+      {%   for alias in cert.aliases|default([]) %}
+      {%     do domains.append(alias) %}
+      {%   endfor %}
+      {%   do cmd.append("-d") %}
+      {%   do cmd.append(domains | join(",")) %}
+      {{- cmd -}}
+  when: '"VALID" not in certbot_needs_run.stdout'
+
+- name: "Load certbot command"
+  set_fact:
+    certbot_command: "{{ certbot_command_data | from_yaml }}"
+  when: '"VALID" not in certbot_needs_run.stdout'
+
+- name: "Fetch Certificate"
+  command:
+    argv: "{{ certbot_command }}"
+  environment:
+    http_proxy: "{{ certbot_proxy if certbot_proxy is defined else omit }}"
+    https_proxy: "{{ certbot_proxy if certbot_proxy is defined else omit }}"
+  when: '"VALID" not in certbot_needs_run.stdout'
+  throttle: 1

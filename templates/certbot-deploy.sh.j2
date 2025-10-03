@@ -1,0 +1,68 @@
+#!/bin/bash
+
+DOMAIN=$1
+CERT_PATH="/etc/letsencrypt/live/${DOMAIN}/cert.pem"
+CHAIN_PATH="/etc/letsencrypt/live/${DOMAIN}/chain.pem"
+FULLCHAIN_PATH="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
+PRIVKEY_PATH="/etc/letsencrypt/live/${DOMAIN}/privkey.pem"
+
+die() {
+	echo "$*"
+	exit 1
+}
+
+case "$DOMAIN" in
+{% for cert in certbot_certs %}
+	{{ cert.domain.removeprefix('*.') }})
+		DEST="{{ cert.path }}"
+		OWNER="{{ cert.owner }}"
+		SERVICE="{{ cert.service|default('') }}"
+		COMMAND="{{ cert.command|default('') }}"
+		;;
+{% endfor %}
+	*)
+		echo "Unsupported domain"
+		exit 1
+		;;
+esac
+
+if [ ! -d "${DEST}" ] ; then
+	mkdir -p "${DEST}" || die "could not make ${DEST}"
+	# Its possible if the service isn't installed yet the service's user hasn't been created yet
+	chown ${OWNER} "${DEST}" || true
+	chmod 755 "${DEST}"
+fi
+
+DEST_FULLCHAIN="${DEST}/${DOMAIN}.fullcrt"
+DEST_CERT="${DEST}/${DOMAIN}.crt"
+DEST_PRIVKEY="${DEST}/${DOMAIN}.key"
+DEST_CHAIN="${DEST}/${DOMAIN}.cabundle"
+
+cp -f "$FULLCHAIN_PATH" "$DEST_FULLCHAIN" || die "Failed to copy $FULLCHAIN_PATH"
+cp -f "$PRIVKEY_PATH" "$DEST_PRIVKEY" || die "Failed to copy $PRIVKEY_PATH"
+cp -f "$CERT_PATH" "$DEST_CERT" || die "Failed to copy $CERT_PATH"
+cp -f "$CHAIN_PATH" "$DEST_CHAIN" || die "Failed to copy $CHAIN_PATH"
+
+# Its possible if the service isn't installed yet the service's user hasn't been created yet
+for file in "$DEST_FULLCHAIN" "$DEST_PRIVKEY" "$DEST_CERT" "$DEST_CHAIN" ; do
+	chown $OWNER "$file"
+	chmod 600 "$file" || die "failed to set perms on $file"
+done
+
+if [ "$SERVICE" != "" ]; then
+	systemctl is-active ${SERVICE} > /dev/null 2>&1
+	RC=$?
+	if [ "$RC" == "0" ]; then
+		systemctl reload ${SERVICE} || die "failed to reload ${SERVICE}"
+	elif [ "$RC" == "3" ]; then
+		# Service not started... possibly the service isn't configured yet.
+		# We'll try to start it but not fail if it fails.
+		systemctl start ${SERVICE} || true
+	fi
+	# "$RC" == "4" means service does not exist... possibly service isn't installed yet.
+fi
+
+if [ "$COMMAND" != "" ] ; then
+	"${COMMAND}" || die "${COMMAND} failed to run"
+fi
+exit 0
