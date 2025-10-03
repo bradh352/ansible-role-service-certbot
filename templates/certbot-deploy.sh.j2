@@ -63,6 +63,6 @@ if [ "$SERVICE" != "" ]; then
 fi
 
 if [ "$COMMAND" != "" ] ; then
-	"${COMMAND}" || die "${COMMAND} failed to run"
+	${COMMAND} || die "${COMMAND} failed to run"
 fi
 exit 0
