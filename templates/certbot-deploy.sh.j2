@@ -1,10 +1,6 @@
 #!/bin/bash
 
 DOMAIN=$1
-CERT_PATH="/etc/letsencrypt/live/${DOMAIN}/cert.pem"
-CHAIN_PATH="/etc/letsencrypt/live/${DOMAIN}/chain.pem"
-FULLCHAIN_PATH="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
-PRIVKEY_PATH="/etc/letsencrypt/live/${DOMAIN}/privkey.pem"
 
 die() {
 	echo "$*"
@@ -14,6 +10,10 @@ die() {
 case "$DOMAIN" in
 {% for cert in certbot_certs %}
 	{{ cert.domain.removeprefix('*.') }})
+		CERT_PATH="/etc/letsencrypt/live/{{ cert.domain }}/cert.pem"
+		CHAIN_PATH="/etc/letsencrypt/live/{{ cert.domain }}/chain.pem"
+		FULLCHAIN_PATH="/etc/letsencrypt/live/{{ cert.domain }}/fullchain.pem"
+		PRIVKEY_PATH="/etc/letsencrypt/live/{{ cert.domain }}/privkey.pem"
 		DEST="{{ cert.path }}"
 		OWNER="{{ cert.owner }}"
 		SERVICE="{{ cert.service|default('') }}"
