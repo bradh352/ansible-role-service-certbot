@@ -51,11 +51,18 @@
     certbot_command: "{{ certbot_command_data | from_yaml }}"
   when: '"VALID" not in certbot_needs_run.stdout'
 
-- name: "Fetch Certificate"
+
+- name: "Fetch Certificate with proxy"
   command:
     argv: "{{ certbot_command }}"
   environment:
-    http_proxy: "{{ certbot_proxy if certbot_proxy is defined else omit }}"
-    https_proxy: "{{ certbot_proxy if certbot_proxy is defined else omit }}"
-  when: '"VALID" not in certbot_needs_run.stdout'
+    http_proxy: "{{ certbot_proxy }}"
+    https_proxy: "{{ certbot_proxy }}"
+  when: '"VALID" not in certbot_needs_run.stdout and certbot_proxy is defined'
+  throttle: 1
+
+- name: "Fetch Certificate"
+  command:
+    argv: "{{ certbot_command }}"
+  when: '"VALID" not in certbot_needs_run.stdout and certbot_proxy is not defined'
   throttle: 1
