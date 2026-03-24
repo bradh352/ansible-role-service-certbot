@@ -5,7 +5,7 @@
       - "python3-certbot"
       - "python3-certbot-nginx"
     state: present
-  when: ansible_os_family == 'Debian'
+  when: ansible_facts['os_family'] == 'Debian'
 
 - name: "DNF: Install dependencies"
   ansible.builtin.dnf:
@@ -13,21 +13,21 @@
       - "python3-certbot"
       - "python3-certbot-nginx"
     state: present
-  when: ansible_os_family == 'RedHat'
+  when: ansible_facts['os_family'] == 'RedHat'
 
 - name: "APT: Install certbot cloudflare provider"
   ansible.builtin.apt:
     pkg:
       - "python3-certbot-dns-cloudflare"
     state: present
-  when: ansible_os_family == 'Debian' and certbot_provider == 'cloudflare'
+  when: ansible_facts['os_family'] == 'Debian' and certbot_provider == 'cloudflare'
 
 - name: "DNF: Install certbot cloudflare provider"
   ansible.builtin.dnf:
     name:
       - "python3-certbot-dns-cloudflare"
     state: present
-  when: ansible_os_family == 'RedHat' and certbot_provider == 'cloudflare'
+  when: ansible_facts['os_family'] == 'RedHat' and certbot_provider == 'cloudflare'
 
 - name: "Install deployment script"
   ansible.builtin.template:
@@ -61,13 +61,13 @@
   with_items:
     - { "key": "http_proxy", "val": "{{ certbot_proxy }}" }
     - { "key": "https_proxy", "val": "{{ certbot_proxy }}" }
-  when: certbot_proxy is defined and ansible_os_family == 'RedHat'
+  when: certbot_proxy is defined and ansible_facts['os_family'] == 'RedHat'
 
 - name: "Override directory for systemd certbot timer"
   ansible.builtin.file:
     path: /etc/systemd/system/certbot.service.d/
     state: directory
-  when: certbot_proxy is defined and ansible_os_family == 'Debian'
+  when: certbot_proxy is defined and ansible_facts['os_family'] == 'Debian'
 
 - name: "Override file systemd certbot timer to support proxy"
   ansible.builtin.template:
@@ -75,4 +75,4 @@
     dest: /etc/systemd/system/certbot.service.d/override.conf
     owner: root
     mode: "644"
-  when: certbot_proxy is defined and ansible_os_family == 'Debian'
+  when: certbot_proxy is defined and ansible_facts['os_family'] == 'Debian'
